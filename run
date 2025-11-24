@@ -1,0 +1,12 @@
+#!/bin/bash
+
+(
+  echo "Compiling front..."
+  cd ./front || echo "Error : ./front not found"
+  npm run build
+)
+
+(
+  echo "Compiling back..."
+  cargo run --release
+)
