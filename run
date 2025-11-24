@@ -2,7 +2,7 @@
 
 (
   echo "Compiling front..."
-  cd ./front || echo "Error : ./front not found"
+  cd ./front || (echo "Error : ./front not found" && exit)
   npm run build
 )
 
