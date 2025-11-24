@@ -1,6 +1,6 @@
 use std::sync::Mutex;
 
-use actix_files::{Files, NamedFile};
+use actix_files::Files;
 use actix_web::{App, HttpServer, web};
 
 mod server;
