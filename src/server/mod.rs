@@ -1,6 +1,7 @@
 use actix_web::{HttpResponse, web};
+use serde::Deserialize;
 use std::process::Stdio;
-use tokio::io::{AsyncBufReadExt, AsyncRead, BufReader as TokioBufReader};
+use tokio::io::{AsyncBufReadExt, AsyncRead, AsyncWriteExt, BufReader as TokioBufReader};
 use tokio::process::Command;
 
 use crate::AppState;
@@ -51,6 +52,9 @@ pub async fn start_server(app_state: web::Data<AppState>) -> HttpResponse {
         Ok(mut child) => {
             let stdout = child.stdout.take().expect("Failed to open stdout");
             let stderr = child.stderr.take().expect("Failed to open stderr");
+            let stdin = child.stdin.take().expect("Failed to open stdin");
+
+            *app_state.server_stdin.lock().await = Some(stdin);
 
             tokio::spawn(handle_output_stream(stdout, app_state.clone(), false));
             tokio::spawn(handle_output_stream(stderr, app_state.clone(), true));
@@ -65,6 +69,7 @@ pub async fn start_server(app_state: web::Data<AppState>) -> HttpResponse {
                     "no pid".to_string()
                 }
             );
+
             HttpResponse::Ok().body(format!(
                 "Server started (PID: {})",
                 if let Some(pid) = child.id() {
@@ -76,6 +81,7 @@ pub async fn start_server(app_state: web::Data<AppState>) -> HttpResponse {
         }
         Err(e) => {
             eprintln!("Error starting server: {e}");
+            *app_state.server_stdin.lock().await = None;
             actix_web::HttpResponse::InternalServerError()
                 .body(format!("Error starting server: {e}"))
         }
@@ -104,9 +110,13 @@ pub async fn stop_server(app_state: web::Data<AppState>) -> HttpResponse {
                         println!("{msg}");
 
                         app_state.broadcaster.do_send(BroadcastLog {
-                            message: format!("[INFO]: {msg}"),
+                            message: msg.clone(),
                             is_error: false,
                         });
+
+                        {
+                            *app_state.server_stdin.lock().await = None;
+                        }
                         HttpResponse::Ok().body(msg)
                     } else {
                         let stderr = String::from_utf8_lossy(&output.stderr);
@@ -114,7 +124,7 @@ pub async fn stop_server(app_state: web::Data<AppState>) -> HttpResponse {
                         eprintln!("{msg}");
 
                         app_state.broadcaster.do_send(BroadcastLog {
-                            message: format!("[ERR]: {msg}"),
+                            message: msg.clone(),
                             is_error: true,
                         });
 
@@ -127,7 +137,7 @@ pub async fn stop_server(app_state: web::Data<AppState>) -> HttpResponse {
                     eprintln!("{msg}");
 
                     app_state.broadcaster.do_send(BroadcastLog {
-                        message: format!("[ERR]: {msg}"),
+                        message: msg.clone(),
                         is_error: true,
                     });
 
@@ -140,5 +150,57 @@ pub async fn stop_server(app_state: web::Data<AppState>) -> HttpResponse {
             println!("Server is already stopped or was never started.");
             HttpResponse::Ok().body("Server is already stopped or was never started.")
         }
+    }
+}
+
+#[derive(Deserialize)]
+pub struct CommandPayload {
+    command: String,
+}
+
+pub async fn send_command(
+    app_state: web::Data<AppState>,
+    payload: web::Json<CommandPayload>,
+) -> HttpResponse {
+    let cmd_text = payload.command.trim();
+    if cmd_text.is_empty() {
+        return HttpResponse::BadRequest().body("Command cannot be empty.");
+    }
+
+    let mut command_to_write = cmd_text.to_string();
+    command_to_write.push('\n');
+
+    let mut server_stdin_lock = app_state.server_stdin.lock().await;
+
+    if let Some(ref mut stdin) = *server_stdin_lock {
+        app_state.broadcaster.do_send(BroadcastLog {
+            message: cmd_text.to_string(),
+            is_error: false,
+        });
+
+        match stdin.write_all(command_to_write.as_bytes()).await {
+            Ok(_) => {
+                if let Err(e) = stdin.flush().await {
+                    let msg = format!("Failed to flush stdin: {e}");
+                    eprintln!("[ERR]: {msg}");
+                    return HttpResponse::InternalServerError().body(msg);
+                }
+
+                HttpResponse::Ok().body(format!("Command '{cmd_text}' sent."))
+            }
+            Err(e) => {
+                let msg = format!("Failed to write to stdin: {e}");
+                eprintln!("[ERR]: {msg}");
+                HttpResponse::InternalServerError().body(msg)
+            }
+        }
+    } else {
+        let msg = "Server process is not running or stdin is closed.";
+        app_state.broadcaster.do_send(BroadcastLog {
+            message: msg.to_string(),
+            is_error: true,
+        });
+
+        HttpResponse::Conflict().body(msg)
     }
 }
