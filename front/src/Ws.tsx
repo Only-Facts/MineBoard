@@ -12,6 +12,7 @@ const API_URL = `http://${window.location.host}/api`;
 const Test: React.FC = () => {
   const [wsStatus, setWsStatus] = useState<'connecting' | 'connected' | 'disconnecting' | 'disconnected'>('disconnected');
   const [logs, setLogs] = useState<LogEntry[]>([]);
+  const [commandInput, setCommandInput] = useState<string>('');
 
   const wsRef = useRef<WebSocket | null>(null);
   const logConsoleRef = useRef<HTMLDivElement>(null);
@@ -32,12 +33,12 @@ const Test: React.FC = () => {
 
   const connectWebSocket = useCallback(() => {
     if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
-      addLogEntry("WebSocket already connected.");
+      addLogEntry("[INFO]: WebSocket already connected.");
       return;
     }
 
     setLogs([]);
-    addLogEntry("Connecting to WebSocket...");
+    addLogEntry("[INFO]: Connecting to WebSocket...");
     setWsStatus('connecting');
 
     const ws = new WebSocket(WS_URL);
@@ -45,7 +46,7 @@ const Test: React.FC = () => {
 
     ws.onopen = () => {
       setWsStatus('connected');
-      addLogEntry("Connection to WebSocket established.");
+      addLogEntry("[INFO]: Connection to WebSocket established.");
     };
 
     ws.onmessage = (event: MessageEvent) => {
@@ -54,8 +55,13 @@ const Test: React.FC = () => {
 
     ws.onclose = () => {
       setWsStatus('disconnected');
-      addLogEntry("Connection to WebSocket closed.");
+      addLogEntry("[INFO]: Connection to WebSocket closed.");
       wsRef.current = null;
+    };
+
+    ws.onerror = () => {
+      addLogEntry("[ERR]: Websocket connection failed.");
+      wsRef.current?.close();
     };
   }, [addLogEntry]);
 
@@ -76,9 +82,9 @@ const Test: React.FC = () => {
       const body = await response.text();
 
       if (response.ok) {
-        addLogEntry(`[OK] Api body: ${body}`);
+        addLogEntry(`[OK]: ${body}`);
       } else {
-        addLogEntry(`[ERR] Api Error: ${body}`);
+        addLogEntry(`[ERR]: ${body}`);
       }
     } catch (error) {
       addLogEntry("[ERR]: Cannot fetch API");
@@ -93,14 +99,47 @@ const Test: React.FC = () => {
       const body = await response.text();
 
       if (response.ok) {
-        addLogEntry(`[OK] Api body: ${body}`);
+        addLogEntry(`[OK]: ${body}`);
+      } else {
+        addLogEntry(`[ERR]: ${body}`);
+      }
+    } catch (error) {
+      addLogEntry("[ERR]: Cannot fetch Api");
+    }
+  }, [addLogEntry]);
+
+  const sendCommand = useCallback(async () => {
+    const trimmedCommand = commandInput.trim();
+    if (!trimmedCommand) return;
+
+    addLogEntry(`[CMD]: ${trimmedCommand}`);
+    setCommandInput("");
+    try {
+      const response = await fetch(`${API_URL}/command`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ command: trimmedCommand }),
+      });
+
+      const body = await response.text();
+
+      if (response.ok) {
+        setCommandInput('');
       } else {
         addLogEntry(`[ERR] Api Error: ${body}`);
       }
     } catch (error) {
       addLogEntry("[ERR]: Cannot fetch Api");
     }
-  }, [addLogEntry]);
+  }, [commandInput, addLogEntry]);
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter' && wsStatus === 'connected') {
+      sendCommand();
+    }
+  };
 
   const statusColor = wsStatus === 'connected' ? 'bg-green-100 text-green-800' :
     wsStatus === 'connecting' || 'disconnecting' ? 'bg-yellow-100 text-yellow-800' : 'bg-red-100 text-red-800';
@@ -163,15 +202,37 @@ const Test: React.FC = () => {
           className="bg-gray-800 text-white p-3 h-64 w-5xl overflow-y-scroll rounded text-sm font-mono text-left"
         >
           {logs.map((logEntry, index) => {
+            const textColor = logEntry.message.includes('[ERR]:') ? 'text-red-400'
+              : logEntry.message.includes('[CMD]:') ? 'text-yellow-400'
+                : 'text-green-400';
+
             return (
-              <div key={index} className={logEntry.message.includes('[ERR]:') ||
-                logEntry.message.includes('Error') ? 'text-red-400' : 'text-green-400'}>
+              <div key={index} className={textColor}>
                 <span className="text-gray-500">[{logEntry.timestamp}]</span> {logEntry.message}
               </div>
             )
           })}
           {logs.length === 0 && <div className="text-gray-500">En attente de logs...</div>}
+          <div className="flex gap-2 mb-0">
+            <input
+              type="text"
+              value={commandInput}
+              onChange={(e) => setCommandInput(e.target.value)}
+              onKeyDown={handleKeyDown}
+              className="grow p-1 border border-gray-400 rounded-lg focus:ring-blue-500 focus:border-blue-500 disabled:bg-gray-900 disabled:text-gray-500"
+              placeholder="Entrer a command"
+              disabled={wsStatus !== 'connected'}
+            />
+            <button
+              className="bg-indigo-600 hover:bg-indigo-700 text-white p-1 rounded-lg font-bold transition duration-150 shadow-md disabled:opacity-50 disabled:bg-gray-400 whitespace-nowrap"
+              onClick={sendCommand}
+              disabled={wsStatus !== 'connected' || commandInput.trim().length === 0}
+            >
+              Envoyer
+            </button>
+          </div>
         </div>
+
       </Row>
     </>
   );
