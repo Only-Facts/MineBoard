@@ -47,6 +47,7 @@ pub async fn start_server(app_state: web::Data<AppState>) -> HttpResponse {
     match command
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
+        .stdin(Stdio::piped())
         .spawn()
     {
         Ok(mut child) => {
