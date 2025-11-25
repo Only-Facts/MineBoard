@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
+import { Col, Row } from "reactstrap";
 
 interface LogEntry {
   timestamp: string,
@@ -85,54 +86,64 @@ const Test: React.FC = () => {
     wsStatus === 'connecting' ? 'bg-yellow-100 text-yellow-800' : 'bg-red-100 text-red-800';
 
   return (
-    <div className="p-4 max-w-2x1 mx-auto">
-      <h1 className="text-2x1 font-bold mb-4">Test MineBoard</h1>
+    <>
+      <Row>
+        <div className={`p-2 rounded-md font-medium mb-4 ${statusColor}`}>
+          WebSocket Status: {wsStatus.charAt(0).toUpperCase() + wsStatus.slice(1)}
+        </div>
 
-      <div className={`p-2 rounded-md font-medium mb-4 ${statusColor}`}>
-        WebSocket Status: {wsStatus.charAt(0).toUpperCase() + wsStatus.slice(1)}
-      </div>
+        <Row className="mb-4">
+          <Col>
+            <button
+              type="button"
+              className="bg-green-500 hover:bg-green-600 text-white p-2 rounded disabled:opacity-50"
+              onClick={connectWebSocket}
+              disabled={wsStatus !== 'disconnected'}
+            >
+              Connect WebSocket
+            </button>
+          </Col>
 
-      <div className="flex space-x-2 mb-4">
-        <button
-          className="bg-green-500 hover:bg-green-600 text-white p-2 rounded disabled:opacity-50"
-          onClick={connectWebSocket}
-          disabled={wsStatus !== 'disconnected'}
+          <Col>
+            <button
+              className="bg-red-500 hover:bg-red-600 text-white p-2 rounded disabled:opacity-50"
+              onClick={disconnectWebSocket}
+              disabled={wsStatus !== 'connected'}
+            >
+              Disconnect WebSocket
+            </button>
+          </Col>
+
+          <Col>
+            <button
+              className="bg-blue-500 hover:bg-blue-600 text-white p-2 rounded disabled:opacity-50"
+              onClick={startServer}
+              disabled={wsStatus !== 'connected'}
+            >
+              Start Server
+            </button>
+          </Col>
+        </Row>
+      </Row>
+
+      <Row>
+        <h2 className="text-xl font-semibold mb-2">Logs</h2>
+        <div
+          ref={logConsoleRef}
+          className="bg-gray-800 text-white p-3 h-64 w-5xl overflow-y-scroll rounded text-sm font-mono text-left"
         >
-          Connect WebSocket
-        </button>
-
-        <button
-          className="bg-red-500 hover:bg-red-600 text-white p-2 rounded disabled:opacity-50"
-          onClick={disconnectWebSocket}
-          disabled={wsStatus !== 'connected'}
-        >
-          Disconnect WebSocket
-        </button>
-
-        <button
-          className="bg-blue-500 hover:bg-blue-600 text-white p-2 rounded disabled:opacity-50"
-          onClick={startServer}
-          disabled={wsStatus !== 'connected'}
-        >
-          Start Server
-        </button>
-      </div>
-
-      <h2 className="text-xl font-semibold mb-2">Logs</h2>
-      <div
-        ref={logConsoleRef}
-        className="bg-gray-800 text-white p-3 h-64 overflow-y-scroll rounded text-sm font-mono text-left"
-      >
-        {logs.map((logEntry, index) => {
-          return (
-            <div key={index} className={logEntry.message.includes('[ERR]:') ? 'text-red-400' : 'text-green-400'}>
-              <span className="text-gray-500">[{logEntry.timestamp}]</span> {logEntry.message}
-            </div>
-          )
-        })}
-        {logs.length === 0 && <div className="text-gray-500">En attente de logs...</div>}
-      </div>
-    </div>
+          {logs.map((logEntry, index) => {
+            return (
+              <div key={index} className={logEntry.message.includes('[ERR]:') ||
+                logEntry.message.includes('Error') ? 'text-red-400' : 'text-green-400'}>
+                <span className="text-gray-500">[{logEntry.timestamp}]</span> {logEntry.message}
+              </div>
+            )
+          })}
+          {logs.length === 0 && <div className="text-gray-500">En attente de logs...</div>}
+        </div>
+      </Row>
+    </>
   );
 };
 
