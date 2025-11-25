@@ -67,7 +67,7 @@ const Test: React.FC = () => {
 
   const disconnectWebSocket = useCallback(() => {
     setWsStatus('disconnecting');
-    addLogEntry("Disconnecting from WebSocket...");
+    addLogEntry("[INFO]: Disconnecting from WebSocket...");
 
     if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
       wsRef.current.close(1000, "Manual Disconnection.");
@@ -75,7 +75,7 @@ const Test: React.FC = () => {
   }, []);
 
   const startServer = useCallback(async () => {
-    addLogEntry("Sending starting command /api/start...");
+    addLogEntry("[INFO]: Sending starting command /api/start...");
 
     try {
       const response = await fetch(`${API_URL}/start`, { method: 'POST' });
@@ -92,7 +92,7 @@ const Test: React.FC = () => {
   }, [addLogEntry]);
 
   const stopServer = useCallback(async () => {
-    addLogEntry("Sending stopping command /api/stop...");
+    addLogEntry("[INFO]: Sending stopping command /api/stop...");
 
     try {
       const response = await fetch(`${API_URL}/stop`, { method: 'POST' });
@@ -128,7 +128,7 @@ const Test: React.FC = () => {
       if (response.ok) {
         setCommandInput('');
       } else {
-        addLogEntry(`[ERR] Api Error: ${body}`);
+        addLogEntry(`[ERR]: ${body}`);
       }
     } catch (error) {
       addLogEntry("[ERR]: Cannot fetch Api");
@@ -199,12 +199,13 @@ const Test: React.FC = () => {
         <h2 className="text-xl font-semibold mb-2">Logs</h2>
         <div
           ref={logConsoleRef}
-          className="bg-gray-800 text-white p-3 h-64 w-5xl overflow-y-scroll rounded text-sm font-mono text-left"
+          className="bg-gray-800 text-white p-3 h-96 w-5xl overflow-y-scroll rounded text-sm font-mono text-left text-pretty"
         >
           {logs.map((logEntry, index) => {
             const textColor = logEntry.message.includes('[ERR]:') ? 'text-red-400'
               : logEntry.message.includes('[CMD]:') ? 'text-yellow-400'
-                : 'text-green-400';
+                : logEntry.message.includes('[INFO]:') ? 'text-blue-400'
+                  : 'text-green-400';
 
             return (
               <div key={index} className={textColor}>
@@ -213,18 +214,19 @@ const Test: React.FC = () => {
             )
           })}
           {logs.length === 0 && <div className="text-gray-500">En attente de logs...</div>}
-          <div className="flex gap-2 mb-0">
+          <div className="flex gap-2 mt-1">
             <input
               type="text"
               value={commandInput}
               onChange={(e) => setCommandInput(e.target.value)}
               onKeyDown={handleKeyDown}
-              className="grow p-1 border border-gray-400 rounded-lg focus:ring-blue-500 focus:border-blue-500 disabled:bg-gray-900 disabled:text-gray-500"
+              className="grow px-2 py-1 rounded-lg bg-gray-900 disabled:text-gray-500"
               placeholder="Entrer a command"
               disabled={wsStatus !== 'connected'}
             />
             <button
-              className="bg-indigo-600 hover:bg-indigo-700 text-white p-1 rounded-lg font-bold transition duration-150 shadow-md disabled:opacity-50 disabled:bg-gray-400 whitespace-nowrap"
+              className="bg-indigo-600 hover:bg-indigo-700 text-white px-2 py-1 font-bold transition duration-150 shadow-md disabled:opacity-50 disabled:bg-gray-900 whitespace-nowrap"
+              style={{ borderRadius: '8px' }}
               onClick={sendCommand}
               disabled={wsStatus !== 'connected' || commandInput.trim().length === 0}
             >
