@@ -7,7 +7,8 @@ use crate::AppState;
 use crate::messages::BroadcastLog;
 
 const COMMAND: &str = "java";
-const START_PATH: &[&str] = &["-jar", "./server/server.jar", "nogui"];
+const ARGS: &[&str] = &["-jar", "server.jar", "nogui"];
+const PATH: &str = "./server";
 
 async fn handle_output_stream<T>(stream: T, app_state: web::Data<AppState>, is_error: bool)
 where
@@ -43,7 +44,8 @@ where
 pub async fn start_server(app_state: web::Data<AppState>) -> HttpResponse {
     let mut command = Command::new(COMMAND);
 
-    command.args(START_PATH);
+    command.current_dir(PATH);
+    command.args(ARGS);
 
     match command
         .stdout(Stdio::piped())
